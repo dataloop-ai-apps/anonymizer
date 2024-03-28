@@ -1,0 +1,122 @@
+{
+  "displayName": "Anonymizer",
+  "name": "anonymizer",
+  "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
+  "scope": "public",
+  "version": "0.1.0",
+  "attributes": {
+    "Provider": "Dataloop",
+    "Category": "Pipeline",
+    "Pipeline Type": "Node",
+    "Node Type": "Models"
+  },
+  "codebase": {
+    "type": "git",
+    "gitUrl": "https://github.com/dataloop-ai-apps/anonymizer.git",
+    "gitTag": "0.1.0"
+  },
+  "components": {
+    "pipelineNodes": [
+      {
+        "invoke": {
+          "type": "function",
+          "namespace": "anonymizer-service.anonymizer-module.anonymize_objects"
+        },
+        "name": "Anonymizer",
+        "categories": ["Anonymization"],
+        "displayName": "Anonymizer",
+        "description": "Blur objects detected by the input model and tagged as one of the listed labels",
+        "scope": "node",
+        "configuration": {
+          "fields": [
+            {
+              "name": "name",
+              "title": "Node Name",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": "Anonymizer",
+                "required": true,
+                "placeholder": "Insert node name"
+              },
+              "rules": [
+                {
+                  "type": "required",
+                  "effect": "error"
+                }
+              ],
+              "widget": "dl-input"
+            }
+          ]
+        }
+      }
+    ],
+    "modules": [
+      {
+        "name": "anonymizer-module",
+        "entryPoint": "anonymizer.py",
+        "className": "ServiceRunner",
+        "initInputs": [],
+        "functions": [
+          {
+            "name": "anonymize_objects",
+            "input": [
+              {
+                "type": "Item",
+                "name": "item"
+              },
+              {
+                "type": "Model",
+                "name": "model"
+              },
+              {
+                "type": "String[]",
+                "name": "labels"
+              },
+              {
+                "type": "Integer",
+                "name": "blur_intensity"
+              }
+            ],
+            "output": [
+              {
+                "type": "Item",
+                "name": "blurred_item",
+                "actions": [
+                  "anonymized",
+                  "no-objects"
+                ]
+              }
+            ],
+            "displayIcon": "crop"
+          }
+        ]
+      }
+    ],
+    "services": [
+      {
+        "name": "anonymizer-service",
+        "moduleName": "anonymizer-module",
+        "initParams": {
+          "integration_name": ""
+        },
+        "secrets": [],
+        "runtime": {
+          "podType": "regular-l",
+          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/cpu/google_vision:0.4.0",
+          "numReplicas": 1,
+          "concurrency": 1,
+          "singleAgent": false,
+          "autoscaler": {
+            "type": "rabbitmq",
+            "minReplicas": 0,
+            "maxReplicas": 2,
+            "queueLength": 10
+          },
+          "preemptible": false
+        },
+        "operation": "none"
+      }
+    ]
+  }
+}
