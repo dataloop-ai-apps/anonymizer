@@ -164,3 +164,4 @@ pip-selfcheck.json
 # End of https://www.toptal.com/developers/gitignore/api/pycharm,macos,venv
 
 .idea
+test_scripts/

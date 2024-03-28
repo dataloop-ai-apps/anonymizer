@@ -14,11 +14,12 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         # Convert the mask to the same size as the image
         mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]))
+        mask_three_channels = np.stack([mask_resized] * 3, axis=-1)
 
         # Blur the objects in the image using Gaussian blur
         blurred_objects = cv2.GaussianBlur(image, (0, 0), sigmaX=sigma, sigmaY=sigma, borderType=cv2.BORDER_DEFAULT)
         logger.info("Blurred version created!")
-        result = np.where(mask_resized, blurred_objects, image)
+        result = np.where(mask_three_channels, blurred_objects, image)
         logger.info("Objects blurred.")
         return result
 
@@ -27,11 +28,11 @@ class ServiceRunner(dl.BaseServiceRunner):
         mask = np.zeros((item.height, item.width), dtype=np.uint8)
         for i, object_of_interest in enumerate(objects_of_interest):
             logger.info(f"Mask for object {i} being created")
-            if object_of_interest.type == dl.Segmentation:
+            if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON:
                 object_mask = dl.Segmentation.from_polygon(object_of_interest.geo,
                                                            object_of_interest.label,
                                                            (item.height, item.width)).geo
-            elif object_of_interest.type == dl.Box:
+            elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
                 object_mask = np.zeros((item.height, item.width))
                 object_mask[int(object_of_interest.top):int(object_of_interest.bottom),
                             int(object_of_interest.left):int(object_of_interest.right)] = 1
@@ -43,9 +44,11 @@ class ServiceRunner(dl.BaseServiceRunner):
 
     @staticmethod
     def run_model(item: dl.Item, model: dl.Model, labels: list) -> dl.AnnotationCollection:
+        logger.info("Starting model prediction")
         predict_execution = model.predict([item.id])
+        logger.info("Waiting for prediction results")
         predict_execution.wait()
-
+        logger.info("Prediction ended successfully.")
         interest_filter = dl.Filters(
             "label",
             labels,

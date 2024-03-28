@@ -97,13 +97,11 @@
       {
         "name": "anonymizer-service",
         "moduleName": "anonymizer-module",
-        "initParams": {
-          "integration_name": ""
-        },
+        "initParams": {},
         "secrets": [],
         "runtime": {
           "podType": "regular-l",
-          "runnerImage": "gcr.io/viewo-g/piper/agent/runner/cpu/google_vision:0.4.0",
+          "runnerImage": "dataloop_runner-cpu/main:1.89.29.latest",
           "numReplicas": 1,
           "concurrency": 1,
           "singleAgent": false,
