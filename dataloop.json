@@ -2,18 +2,13 @@
   "displayName": "Anonymizer",
   "name": "anonymizer",
   "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
-  "scope": "public",
-  "version": "0.1.1",
+  "scope": "project",
+  "version": "0.1.10",
   "attributes": {
     "Provider": "Dataloop",
     "Category": "Pipeline",
     "Pipeline Type": "Node",
-    "Node Type": "Models"
-  },
-  "codebase": {
-    "type": "git",
-    "gitUrl": "https://github.com/dataloop-ai-apps/anonymizer.git",
-    "gitTag": "0.1.1"
+    "Node Type": "Image Utils"
   },
   "components": {
     "pipelineNodes": [
@@ -46,6 +41,144 @@
                 }
               ],
               "widget": "dl-input"
+            },
+            {
+              "name": "model_id",
+              "title": "Model",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": "",
+                "required": true,
+                "placeholder": "Insert model id"
+              },
+              "rules": [
+                {
+                  "type": "required",
+                  "effect": "error"
+                }
+              ],
+              "widget": "dl-input"
+            },
+            {
+              "name": "blur_intensity",
+              "title": "Blur Intensity",
+              "props": {
+                "title": true,
+                "type": "number",
+                "default": 25,
+                "max": 100,
+                "min": 0,
+                "step": 1,
+                "required": true
+              },
+              "rules": [
+                {
+                  "type": "required",
+                  "effect": "error"
+                }
+              ],
+              "widget": "dl-slider"
+            },
+            {
+              "name": "labels",
+              "title": "Labels",
+              "props": {
+                "title": true,
+                "type": "string",
+                "required": true,
+                "default": "person,face"
+              },
+              "rules": [
+                {
+                  "type": "required",
+                  "effect": "error"
+                }
+              ],
+              "widget": "dl-input"
+            },
+            {
+              "name": "dataset_id",
+              "title": "Dataset",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": "",
+                "required": false,
+                "placeholder": "Insert dataset id where the output item will be saved"
+              },
+              "rules": [],
+              "widget": "dl-input"
+            },
+            {
+              "name": "remote_path",
+              "title": "Save directory",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": "/.dataloop/blurred",
+                "required": false,
+                "placeholder": "Insert directory to save items"
+              },
+              "rules": [],
+              "widget": "dl-input"
+            },
+            {
+              "name": "prefix",
+              "title": "Saved item prefix",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": "blurred",
+                "required": false,
+                "placeholder": "Prefix to output item filename"
+              },
+              "rules": [],
+              "widget": "dl-input"
+            },
+            {
+              "name": "blur",
+              "title": "Blur or fill?",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": true,
+                "required": false,
+                "options": [
+                  {
+                    "value": "blur",
+                    "label": "Blur"
+                  },
+                  {
+                    "value": "fill",
+                    "label": "Fill"
+                  }
+                ]
+              },
+              "rules": [],
+              "widget": "dl-select"
+            },
+            {
+              "name": "replace",
+              "title": "Replace input image?",
+              "props": {
+                "title": true,
+                "type": "string",
+                "default": true,
+                "required": false,
+                "options": [
+                  {
+                    "value": "yes",
+                    "label": "Yes"
+                  },
+                  {
+                    "value": "no",
+                    "label": "No"
+                  }
+                ]
+              },
+              "rules": [],
+              "widget": "dl-select"
             }
           ]
         }
@@ -64,18 +197,6 @@
               {
                 "type": "Item",
                 "name": "item"
-              },
-              {
-                "type": "Model",
-                "name": "model"
-              },
-              {
-                "type": "String[]",
-                "name": "labels"
-              },
-              {
-                "type": "Integer",
-                "name": "blur_intensity"
               }
             ],
             "output": [
@@ -88,7 +209,7 @@
                 ]
               }
             ],
-            "displayIcon": "crop"
+            "displayIcon": "icon-dl-governance-filled"
           }
         ]
       }
