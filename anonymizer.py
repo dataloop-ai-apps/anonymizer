@@ -1,7 +1,9 @@
 import dtlpy as dl
+from typing import Any
 import cv2
 import logging
 import numpy as np
+import time
 
 logger = logging.getLogger("[Anonymizer]")
 
@@ -10,18 +12,35 @@ class ServiceRunner(dl.BaseServiceRunner):
     @staticmethod
     def blur_objects(item: dl.Item, mask: np.array, sigma: int, blur: bool = True) -> np.array:
         logger.info("Blurring objects!")
+        download_time_start = time.time()
         image = item.download(save_locally=False, to_array=True)
+        download_end_time = time.time()
+        print(f"Downloading time spent: {download_end_time - download_time_start}")
+
+        three_channels_start_time = time.time()
+        image_three_channels = image if len(image.shape) == 3 else np.stack([image] * 3, axis=-1)
+        print(f"Creating three channels image time spent: {time.time() - three_channels_start_time}")
 
         # Convert the mask to the same size as the image
+        mask_three_channels_start = time.time()
         mask_three_channels = np.stack([mask] * 3, axis=-1)
+        print(f"Creating three channels mask time spent: {time.time() - three_channels_start_time}")
 
-        if blur:
+        if blur is True:
             # Blur the objects in the image using Gaussian blur
-            blurred_objects = cv2.GaussianBlur(image, (0, 0), sigmaX=sigma, sigmaY=sigma, borderType=cv2.BORDER_DEFAULT)
+            blur_start = time.time()
+            blurred_objects = cv2.GaussianBlur(image_three_channels,
+                                               (0, 0),
+                                               sigmaX=sigma,
+                                               sigmaY=sigma,
+                                               borderType=cv2.BORDER_DEFAULT)
+            print(f"Blurring time spent: {time.time() - blur_start}")
         else:
             blurred_objects = mask_three_channels
         logger.info("Blurred version created!")
-        result = np.where(mask_three_channels, blurred_objects, image)
+        replace_start = time.time()
+        result = np.where(mask_three_channels, blurred_objects, image_three_channels)
+        print(f"Object replacing time spent: {time.time() - replace_start}")
         logger.info("Objects blurred.")
         return result
 
@@ -61,7 +80,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         predict_execution.wait()
         logger.info("Prediction ended successfully.")
         interest_filter = dl.Filters(
-            "label",
+            dl.KnownFields.LABEL,
             labels,
             operator=dl.FiltersOperations.IN,
             resource=dl.FiltersResource.ANNOTATION
@@ -71,71 +90,128 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info(f"Number of objects of interest found in the image: {len(objects_of_interest)}")
         return objects_of_interest
 
+    @staticmethod
+    def get_models_and_labels(context:dl.Context) -> tuple[Any, Any, Any]:
+        node = context.node
+        model_id = node.metadata['customNodeConfig'].get('model_id', "")
+        model = dl.models.get(model_id=model_id) if model_id != "" else None
+        labels = node.metadata['customNodeConfig']['labels']
+        labels = labels.split(",")
+        logger.info("Model loaded")
+        logger.info(f"Model to be used: {model_id}. Labels to be searched: {labels}")
+        return model, model_id, labels
+
+    def predict_and_anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
+        logger.info("Starting prediction+anonymization")
+        model, model_id, labels = self.get_models_and_labels(context)
+        logger.info(f"Running prediction")
+        model_run_start = time.time()
+        objects_of_interest = self.run_model(item, model, labels)
+        print(f"----- Time spent in model prediction: {time.time() - model_run_start}")
+        logger.info(f"Prediction successful")
+        anon_start = time.time()
+        res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
+        print(f"----- Anonymization time: {time.time() - anon_start}")
+        return res
+
+    def anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
+        logger.info("Starting anonymization w/o prediction")
+        model, model_id, labels = self.get_models_and_labels(context)
+        objects_of_interest_filter = dl.Filters(dl.KnownFields.LABEL,
+                                                labels,
+                                                resource=dl.FiltersResource.ANNOTATION,
+                                                operator=dl.FiltersOperations.IN)
+        objects_of_interest_filter.add("metadata.system.model.model_id", model.id)
+        logger.info("Filtering annotations generated from the model.")
+        objects_of_interest = item.annotations.list(filters=objects_of_interest_filter)
+        anon_start = time.time()
+        res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
+        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
+        return res
+
+    def anonymize_annotations(self,
+                              annotations: dl.AnnotationCollection,
+                              progress: dl.Progress,
+                              context: dl.Context) -> dl.Item:
+        logger.info("Starting anonymization based on annotations")
+        _, model_id, labels = self.get_models_and_labels(context)
+        item = annotations[0].item
+        objects_of_interest = dl.AnnotationCollection()
+        annotations_of_interest = dl.AnnotationCollection([ann for ann in annotations if ann.label in labels])
+        for a in annotations_of_interest:
+            objects_of_interest.add(a)
+        anon_start = time.time()
+        res = self.anonymize_objects(item, objects_of_interest, model_id, progress, context)
+        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
+        return res
+
     def anonymize_objects(self,
                           item: dl.Item,
+                          objects_of_interest: dl.AnnotationCollection,
+                          model_id: str,
                           progress: dl.Progress,
                           context: dl.Context
                           ) -> dl.Item:
         # Initialization
         logger.info("Initializing the parameters from the node configuration")
         node = context.node
-        model_id = node.metadata['customNodeConfig']['model_id']
         blur_intensity = node.metadata['customNodeConfig']['blur_intensity']
-        labels = node.metadata['customNodeConfig']['labels']
-        dataset_id = node.metadata['customNodeConfig'].get('dataset_id')
-        dataset_id = dataset_id if dataset_id else item.dataset_id
-        remote_path = node.metadata['customNodeConfig'].get('remote_path')
-        remote_path = remote_path if remote_path else "/.dataloop/blurred"
-        prefix = node.metadata['customNodeConfig'].get('prefix')
-        prefix = prefix if prefix else "blurred"
         blur = node.metadata['customNodeConfig'].get('blur')
         blur = "blur" in blur if blur else True
         replace = node.metadata['customNodeConfig'].get('replace')
         replace = "yes" in replace if replace else True
-        logger.debug(f"INPUT CONFIGURATIONS FOUND -- model_id: {model_id}, blur_intensity: {blur_intensity}, labels: "
-                     f"{labels}, dataset_id: {dataset_id}, remote_path: {remote_path}, prefix: {prefix}, blur: {blur} "
-                     f"replace: {replace}")
+        dataset_id = item.dataset_id
+        remote_path = node.metadata["customNodeConfig"].get("directory", "/blurred")
+        prefix = "blurred"
+        logger.debug(f"INPUT CONFIGURATIONS FOUND -- blur_intensity: {blur_intensity}, dataset_id: {dataset_id}, "
+                     f"remote_path: {remote_path}, prefix: {prefix}, blur: {blur}, replace: {replace}")
 
-        labels = labels.split(",")
         dataset = dl.datasets.get(dataset_id=dataset_id)
         logger.info("Dataset loaded")
-        model = dl.models.get(model_id=model_id)
-        logger.info("Model loaded")
-        # Run the model:
-        logger.info("Running model to obtain detections")
-        objects_of_interest = self.run_model(item, model, labels)
-        logger.info(f"Model run successful. Obtained {len(objects_of_interest)} objects of interest.")
+
+        logger.info(f"Obtained {len(objects_of_interest)} objects of interest.")
 
         if len(objects_of_interest) > 0:
+            mask_creation_start = time.time()
             mask = self.create_mask(item, objects_of_interest)
+            print(f"*** Time spent in mask creation: {time.time() - mask_creation_start}")
             logger.info("Mask created.")
+            blur_start = time.time()
             blurred_image = self.blur_objects(item, mask, blur_intensity, blur)
+            print(f"*** Time spent in blurring: {time.time() - blur_start}")
             logger.info("Blurred image created")
+            metadata = item.metadata
+            metadata["anonymization"] = {"original_item_id": item.id, "anonymized": True}
             blurred_item = dataset.items.upload(blurred_image,
                                                 remote_path=remote_path,
+                                                metadata=metadata,
                                                 remote_name=f"{prefix}_{item.name}")
             logger.info("Item for blurred image created!")
-            blurred_item.metadata["original_item_id"] = item.id
-            blurred_item.metadata["anonymized"] = True
-            blurred_item = blurred_item.update()
             logger.info("Blurred item updated!")
-            if replace:
+            if replace == "replace":
                 logger.info("Replacing original item with blurred item.")
                 item.modalities.delete(name="reference-viewer")
-                item.modalities.create(modality_type=dl.MODALITY_TYPE_OVERLAY,
+                item.modalities.create(modality_type=dl.MODALITY_TYPE_REPLACE,
                                        name='reference-viewer',
                                        mimetype=blurred_item.mimetype,
                                        ref=blurred_item.id
                                        )
                 item.update(system_metadata=True)
+            elif replace == "remove":
+                logger.info("Removing original item.")
+                item.delete()
+            else:
+                logger.info("Original item was kept unchanged.")
             progress.update(action="anonymized")
         else:
             blurred_item = item
             logger.info("There were no objects of interest in the image")
-            blurred_item.metadata["system"]["anonymized"] = False
+            blurred_item.metadata["anonymization"] = {"anonymized": False}
             progress.update(action="no-objects")
-        for ann in item.annotations.list():
-            ann.delete()
+        if model_id != "":
+            item.annotations.delete(filters=dl.Filters("metadata.system.model.model_id",
+                                                       model_id,
+                                                       resource=dl.FiltersResource.ANNOTATION)) # Should be optional
         blurred_item = blurred_item.update(system_metadata=True)
         logger.info("Annotations deleted, original image cleaned up")
         return blurred_item
