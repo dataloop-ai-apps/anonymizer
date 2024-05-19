@@ -184,7 +184,7 @@ class ServiceRunner(dl.BaseServiceRunner):
             metadata["anonymization"] = {"original_item_id": item.id, "anonymized": True}
             blurred_item = dataset.items.upload(blurred_image,
                                                 remote_path=remote_path,
-                                                metadata=metadata,
+                                                item_metadata=metadata,
                                                 remote_name=f"{prefix}_{item.name}")
             logger.info("Item for blurred image created!")
             logger.info("Blurred item updated!")
