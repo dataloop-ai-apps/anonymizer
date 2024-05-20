@@ -1,9 +1,9 @@
 {
   "displayName": "Anonymization Tools",
-  "name": "anonymization Tools",
+  "name": "anonymization-tools",
   "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
   "scope": "project",
-  "version": "0.1.26",
+  "version": "0.1.29",
   "attributes": {
     "Provider": "Dataloop",
     "Category": "Pipeline",

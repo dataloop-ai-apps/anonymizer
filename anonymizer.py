@@ -49,7 +49,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         mask = np.zeros((item.height, item.width), dtype=np.uint8)
         for i, object_of_interest in enumerate(objects_of_interest):
             logger.info(f"Mask for object {i} being created")
-            if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON:
+            if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo > 0):
                 object_mask = dl.Segmentation.from_polygon(object_of_interest.geo,
                                                            object_of_interest.label,
                                                            (item.height, item.width)).geo
@@ -196,12 +196,15 @@ class ServiceRunner(dl.BaseServiceRunner):
                                        mimetype=blurred_item.mimetype,
                                        ref=blurred_item.id
                                        )
-                item.update(system_metadata=True)
             elif replace == "remove":
                 logger.info("Removing original item.")
                 item.delete()
             else:
                 logger.info("Original item was kept unchanged.")
+            if 'user' not in item.metadata:
+                item.metadata['user'] = dict()
+            item.metadata['user']['result_item_id'] = blurred_item.id
+            item.update(system_metadata=True)
             progress.update(action="anonymized")
         else:
             blurred_item = item
