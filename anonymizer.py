@@ -24,7 +24,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         # Convert the mask to the same size as the image
         mask_three_channels_start = time.time()
         mask_three_channels = np.stack([mask] * 3, axis=-1)
-        print(f"Creating three channels mask time spent: {time.time() - three_channels_start_time}")
+        print(f"Creating three channels mask time spent: {time.time() - mask_three_channels_start}")
 
         if blur is True:
             # Blur the objects in the image using Gaussian blur
@@ -49,7 +49,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         mask = np.zeros((item.height, item.width), dtype=np.uint8)
         for i, object_of_interest in enumerate(objects_of_interest):
             logger.info(f"Mask for object {i} being created")
-            if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo > 0):
+            if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo) > 0:
                 object_mask = dl.Segmentation.from_polygon(object_of_interest.geo,
                                                            object_of_interest.label,
                                                            (item.height, item.width)).geo
@@ -162,7 +162,9 @@ class ServiceRunner(dl.BaseServiceRunner):
         replace = "yes" in replace if replace else True
         dataset_id = item.dataset_id
         remote_path = node.metadata["customNodeConfig"].get("directory", "/blurred")
+        labels = node.metadata['customNodeConfig']['labels']
         prefix = "blurred"
+
         logger.debug(f"INPUT CONFIGURATIONS FOUND -- blur_intensity: {blur_intensity}, dataset_id: {dataset_id}, "
                      f"remote_path: {remote_path}, prefix: {prefix}, blur: {blur}, replace: {replace}")
 
@@ -186,6 +188,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                                                 remote_path=remote_path,
                                                 item_metadata=metadata,
                                                 remote_name=f"{prefix}_{item.name}")
+            blurred_item.annotations.upload(objects_of_interest)
             logger.info("Item for blurred image created!")
             logger.info("Blurred item updated!")
             if replace == "replace":
@@ -211,10 +214,12 @@ class ServiceRunner(dl.BaseServiceRunner):
             logger.info("There were no objects of interest in the image")
             blurred_item.metadata["anonymization"] = {"anonymized": False}
             progress.update(action="no-objects")
+        annotation_deletion_filter = dl.Filters(resource=dl.FILTERS_RESOURCE_ANNOTATION)
+        for label in labels:
+            annotation_deletion_filter.add(dl.KnownFields.LABEL, label, operator=dl.FiltersOperations.NOT_EQUAL)
         if model_id != "":
-            item.annotations.delete(filters=dl.Filters("metadata.system.model.model_id",
-                                                       model_id,
-                                                       resource=dl.FiltersResource.ANNOTATION)) # Should be optional
+            annotation_deletion_filter.add("metadata.system.model.model_id", model_id)
+        item.annotations.delete(filters=annotation_deletion_filter)
         blurred_item = blurred_item.update(system_metadata=True)
         logger.info("Annotations deleted, original image cleaned up")
         return blurred_item
