@@ -526,7 +526,7 @@
     ],
     "services": [
       {
-        "name": "anonymizer-service-timing",
+        "name": "anonymizer-service",
         "moduleName": "anonymizer-module",
         "initParams": {},
         "secrets": [],
