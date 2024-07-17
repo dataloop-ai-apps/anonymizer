@@ -6,9 +6,10 @@
   "version": "0.1.33",
   "attributes": {
     "Provider": "Dataloop",
-    "Category": "Pipeline",
-    "Pipeline Type": "Node",
-    "Node Type": "Image Utils"
+    "Category": "Application",
+    "Application Type": [
+      "Pipeline Node"
+    ]
   },
   "components": {
     "pipelineNodes": [
@@ -18,7 +19,9 @@
           "namespace": "anonymizer-service.anonymizer-module.predict_and_anonymize"
         },
         "name": "Predict and Anonymize",
-        "categories": ["Anonymization"],
+        "categories": [
+          "Anonymization"
+        ],
         "displayName": "Predict and Anonymize",
         "description": "This node takes an item and a model, runs the model's prediction over the item, and blurs detected objects of classes specified in the `labels` parameter.",
         "scope": "node",
@@ -171,7 +174,9 @@
           "namespace": "anonymizer-service.anonymizer-module.anonymize"
         },
         "name": "Anonymize",
-        "categories": ["Anonymization"],
+        "categories": [
+          "Anonymization"
+        ],
         "displayName": "Anonymize",
         "description": "Blurs objects of the specified labels detected by the specified model in the input image.",
         "scope": "node",
@@ -324,7 +329,9 @@
           "namespace": "anonymizer-service.anonymizer-module.anonymize_annotations"
         },
         "name": "Anonymize Annotations",
-        "categories": ["Anonymization"],
+        "categories": [
+          "Anonymization"
+        ],
         "displayName": "Anonymize Annotations",
         "description": "Takes an annotation collection and blurs the objects of interest in the item to which they belong.",
         "scope": "node",
