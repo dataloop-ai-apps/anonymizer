@@ -13,7 +13,7 @@
     "Provider": "Dataloop",
     "Category": "Application",
     "Application Type": [
-      "Pipeline Node"
+      "Node"
     ]
   },
   "components": {
