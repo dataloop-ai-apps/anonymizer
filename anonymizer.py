@@ -4,6 +4,7 @@ import cv2
 import logging
 import numpy as np
 import time
+from typing import List
 
 logger = logging.getLogger("[Anonymizer]")
 
@@ -49,20 +50,24 @@ class ServiceRunner(dl.BaseServiceRunner):
         mask = np.zeros((item.height, item.width), dtype=np.uint8)
         for i, object_of_interest in enumerate(objects_of_interest):
             logger.info(f"Mask for object {i} being created")
+            object_mask = np.zeros_like(mask, dtype=np.uint8)
             if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo) > 0:
-                object_mask = dl.Segmentation.from_polygon(object_of_interest.geo,
-                                                           object_of_interest.label,
-                                                           (item.height, item.width)).geo
+                # Generate a polygon mask
+                segmentation = dl.Segmentation.from_polygon(object_of_interest.geo,
+                                                            object_of_interest.label,
+                                                            (item.height, item.width))
+                object_mask = np.array(segmentation.geo, dtype=np.uint8)
             elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
-                object_mask = np.zeros((item.height, item.width))
-                top, bottom = int(object_of_interest.top), int(objects_of_interest.bottom)
-                left, right = int(object_of_interest.left), int(objects_of_interest.right)
+                # Generate a box mask
+                top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
+                left, right = int(object_of_interest.left), int(object_of_interest.right)
                 if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
                     object_mask[top:bottom, left:right] = 1
                 else:
-                    raise Exception(f"Detection {object_of_interest.id} has coordinates outside of the image!")
+                    raise ValueError(f"Detection {object_of_interest.id} has coordinates outside of the image!")
             elif object_of_interest.type == dl.ANNOTATION_TYPE_SEGMENTATION:
-                object_mask = object_of_interest.geo
+                # Use the segmentation mask
+                object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
             else:
                 logger.warning("Object of interest is neither of type box nor mask.")
                 object_mask = mask
@@ -84,65 +89,72 @@ class ServiceRunner(dl.BaseServiceRunner):
             labels,
             operator=dl.FiltersOperations.IN,
             resource=dl.FiltersResource.ANNOTATION
-            )
+        )
         interest_filter.add("metadata.system.model.model_id", model.id)
         objects_of_interest = item.annotations.list(filters=interest_filter)
         logger.info(f"Number of objects of interest found in the image: {len(objects_of_interest)}")
         return objects_of_interest
 
     @staticmethod
-    def get_models_and_labels(context:dl.Context) -> tuple[Any, Any, Any]:
+    def get_models_and_labels(context: dl.Context) -> tuple[Any, Any, Any]:
         node = context.node
-        model_id = node.metadata['customNodeConfig'].get('model_id', "")
-        model = dl.models.get(model_id=model_id) if model_id != "" else None
+        model_ids = node.metadata['customNodeConfig']['model_ids']
+        model_ids = model_ids.split(",")
+        models_list = [dl.models.get(model_id=model_id) if model_id != "" else None for model_id in model_ids]
         labels = node.metadata['customNodeConfig']['labels']
         labels = labels.split(",")
         logger.info("Model loaded")
-        logger.info(f"Model to be used: {model_id}. Labels to be searched: {labels}")
-        return model, model_id, labels
+        logger.info(f"Model to be used: {model_ids}. Labels to be searched: {labels}")
+        return models_list, model_ids, labels
 
     def predict_and_anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
         logger.info("Starting prediction+anonymization")
-        model, model_id, labels = self.get_models_and_labels(context)
-        logger.info(f"Running prediction")
-        model_run_start = time.time()
-        objects_of_interest = self.run_model(item, model, labels)
-        print(f"----- Time spent in model prediction: {time.time() - model_run_start}")
-        logger.info(f"Prediction successful")
-        anon_start = time.time()
-        res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
-        print(f"----- Anonymization time: {time.time() - anon_start}")
+        models_list, model_ids, labels = self.get_models_and_labels(context)
+        res = None
+        for model in models_list:
+            logger.info(f"Running prediction for model {model.id}.")
+            model_run_start = time.time()
+            objects_of_interest = self.run_model(item, model, labels)
+            print(f"----- Time spent in model prediction: {time.time() - model_run_start}")
+            logger.info(f"Prediction successful")
+            anon_start = time.time()
+
+            res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
+            print(f"----- Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
         logger.info("Starting anonymization w/o prediction")
-        model, model_id, labels = self.get_models_and_labels(context)
-        objects_of_interest_filter = dl.Filters(dl.KnownFields.LABEL,
-                                                labels,
-                                                resource=dl.FiltersResource.ANNOTATION,
-                                                operator=dl.FiltersOperations.IN)
-        objects_of_interest_filter.add("metadata.system.model.model_id", model.id)
-        logger.info("Filtering annotations generated from the model.")
-        objects_of_interest = item.annotations.list(filters=objects_of_interest_filter)
-        anon_start = time.time()
-        res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
-        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
+        models_list, model_ids, labels = self.get_models_and_labels(context)
+        res = None
+        for model in models_list:
+            objects_of_interest_filter = dl.Filters(dl.KnownFields.LABEL,
+                                                    labels,
+                                                    resource=dl.FiltersResource.ANNOTATION,
+                                                    operator=dl.FiltersOperations.IN)
+            objects_of_interest_filter.add("metadata.system.model.model_id", model.id)
+            logger.info(f"Filtering annotations generated from the model {model.id}.")
+            objects_of_interest = item.annotations.list(filters=objects_of_interest_filter)
+            anon_start = time.time()
+            res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
+            print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize_annotations(self,
                               annotations: dl.AnnotationCollection,
                               progress: dl.Progress,
                               context: dl.Context) -> dl.Item:
-        logger.info("Starting anonymization based on annotations")
-        _, model_id, labels = self.get_models_and_labels(context)
-        item = annotations[0].item
-        objects_of_interest = dl.AnnotationCollection()
-        annotations_of_interest = dl.AnnotationCollection([ann for ann in annotations if ann.label in labels])
-        for a in annotations_of_interest:
-            objects_of_interest.add(a)
-        anon_start = time.time()
-        res = self.anonymize_objects(item, objects_of_interest, model_id, progress, context)
-        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
+        logger.info("Starting anonymization based on annotations.")
+        _, model_ids, labels = self.get_models_and_labels(context)
+        res = None
+        for model_id in model_ids:
+            item = annotations[0].item
+            filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
+            filters.add(field='label', values=labels, operator=dl.FILTERS_OPERATIONS_IN)
+            objects_of_interest = item.annotations.list(filters=filters)
+            anon_start = time.time()
+            res = self.anonymize_objects(item, objects_of_interest, model_id, progress, context)
+            print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize_objects(self,

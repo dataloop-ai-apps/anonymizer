@@ -3,7 +3,7 @@
   "name": "anonymization-tools",
   "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
   "version": "0.1.2",
-  "scope": "public",
+  "scope": "project",
   "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/anonymizer.git",
@@ -51,14 +51,14 @@
               "widget": "dl-input"
             },
             {
-              "name": "model_id",
-              "title": "Model",
+              "name": "model_ids",
+              "title": "Models",
               "props": {
                 "title": true,
                 "type": "string",
-                "default": "",
+                "default": "model_id_1, model_id_2",
                 "required": true,
-                "placeholder": "Insert model id"
+                "placeholder": "Insert model ids"
               },
               "rules": [
                 {
@@ -75,7 +75,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "person,face"
+                "default": "label_1, label_2"
               },
               "rules": [
                 {
