@@ -98,7 +98,7 @@ class ServiceRunner(dl.BaseServiceRunner):
     @staticmethod
     def get_models_and_labels(context: dl.Context) -> tuple[Any, Any, Any]:
         node = context.node
-        model_ids = node.metadata['customNodeConfig']['model_ids']
+        model_ids = node.metadata['customNodeConfig'].get('model_ids', "")
         model_ids = model_ids.split(",")
         models_list = [dl.models.get(model_id=model_id) if model_id != "" else None for model_id in model_ids]
         labels = node.metadata['customNodeConfig']['labels']
@@ -145,16 +145,14 @@ class ServiceRunner(dl.BaseServiceRunner):
                               progress: dl.Progress,
                               context: dl.Context) -> dl.Item:
         logger.info("Starting anonymization based on annotations.")
-        _, model_ids, labels = self.get_models_and_labels(context)
-        res = None
-        for model_id in model_ids:
-            item = annotations[0].item
-            filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
-            filters.add(field='label', values=labels, operator=dl.FILTERS_OPERATIONS_IN)
-            objects_of_interest = item.annotations.list(filters=filters)
-            anon_start = time.time()
-            res = self.anonymize_objects(item, objects_of_interest, model_id, progress, context)
-            print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
+        _, _, labels = self.get_models_and_labels(context)
+        item = annotations[0].item
+        filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
+        filters.add(field='label', values=labels, operator=dl.FILTERS_OPERATIONS_IN)
+        objects_of_interest = item.annotations.list(filters=filters)
+        anon_start = time.time()
+        res = self.anonymize_objects(item, objects_of_interest, "", progress, context)
+        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize_objects(self,

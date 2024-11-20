@@ -25,7 +25,7 @@
         },
         "name": "Predict and Anonymize",
         "categories": [
-          "Anonymization"
+          "image-utils"
         ],
         "displayName": "Predict and Anonymize",
         "description": "This node takes an item and a model, runs the model's prediction over the item, and blurs detected objects of classes specified in the `labels` parameter.",
@@ -180,7 +180,7 @@
         },
         "name": "Anonymize",
         "categories": [
-          "Anonymization"
+          "image-utils"
         ],
         "displayName": "Anonymize",
         "description": "Blurs objects of the specified labels detected by the specified model in the input image.",
@@ -335,7 +335,7 @@
         },
         "name": "Anonymize Annotations",
         "categories": [
-          "Anonymization"
+          "image-utils"
         ],
         "displayName": "Anonymize Annotations",
         "description": "Takes an annotation collection and blurs the objects of interest in the item to which they belong.",
