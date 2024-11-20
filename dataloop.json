@@ -75,7 +75,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "label_1, label_2"
+                "default": "label_1,label_2"
               },
               "rules": [
                 {
@@ -206,12 +206,12 @@
               "widget": "dl-input"
             },
             {
-              "name": "model_id",
+              "name": "model_ids",
               "title": "Model",
               "props": {
                 "title": true,
                 "type": "string",
-                "default": "model_1, model_2",
+                "default": "model_1,model_2",
                 "required": true,
                 "placeholder": "Insert model id(s)"
               },
@@ -230,7 +230,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "label_1, label_2"
+                "default": "label_1,label_2"
               },
               "rules": [
                 {
@@ -367,7 +367,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "label_1, label_2"
+                "default": "label_1,label_2"
               },
               "rules": [
                 {
