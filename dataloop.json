@@ -58,7 +58,7 @@
                 "type": "string",
                 "default": "model_id_1, model_id_2",
                 "required": true,
-                "placeholder": "Insert model ids"
+                "placeholder": "Insert model id(s)"
               },
               "rules": [
                 {
@@ -211,9 +211,9 @@
               "props": {
                 "title": true,
                 "type": "string",
-                "default": "",
+                "default": "model_1, model_2",
                 "required": true,
-                "placeholder": "Insert model id"
+                "placeholder": "Insert model id(s)"
               },
               "rules": [
                 {
@@ -230,7 +230,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "person,face"
+                "default": "label_1, label_2"
               },
               "rules": [
                 {
@@ -367,7 +367,7 @@
                 "title": true,
                 "type": "string",
                 "required": true,
-                "default": "person,face"
+                "default": "label_1, label_2"
               },
               "rules": [
                 {
