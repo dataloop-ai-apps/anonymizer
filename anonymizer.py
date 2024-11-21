@@ -48,16 +48,13 @@ class ServiceRunner(dl.BaseServiceRunner):
                                                             (item.height, item.width))
                 object_mask = np.array(segmentation.geo, dtype=np.uint8)
             elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
-                # TODO: dl.segmentation.from_coordinates instead of that
                 # Generate a box mask
-                # object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
-                object_mask = dl.Segmentation.from_coordinates(object_of_interest.coordinates)
-                # top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
-                # left, right = int(object_of_interest.left), int(object_of_interest.right)
-                # if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
-                #     object_mask[top:bottom, left:right] = 1
-                # else:
-                #     raise ValueError(f"Detection {object_of_interest.id} has coordinates outside of the image!")
+                top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
+                left, right = int(object_of_interest.left), int(object_of_interest.right)
+                if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
+                    object_mask[top:bottom, left:right] = 1
+                else:
+                    raise ValueError(f"Detection {object_of_interest.id} has coordinates outside of the image!")
             elif object_of_interest.type == dl.ANNOTATION_TYPE_SEGMENTATION:
                 # Use the segmentation mask
                 object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
