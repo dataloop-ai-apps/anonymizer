@@ -80,7 +80,14 @@
                 "title": true,
                 "type": "string",
                 "default": true,
-                "required": false,
+                "required": true,
+
+                "rules": [
+                  {
+                    "type": "required",
+                    "effect": "error"
+                  }
+                ],
                 "options": [
                   {
                     "value": "blur",

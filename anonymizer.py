@@ -163,15 +163,13 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info(f"Found {len(objects_of_interest)} objects of interest.")
 
         # Define the filter to exclude annotations that are in objects_of_interest_set
-        filters_not_object_of_interest = dl.Filters(dl.FiltersResource.ANNOTATION,
-                                                    [ann.id for ann in objects_of_interest],
-                                                    operator=dl.FiltersOperations.NIN)
+        filters_not_object_of_interest = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
+        filters_not_object_of_interest.add(field='id',
+                                           values=[ann.id for ann in objects_of_interest],
+                                           operator=dl.FiltersOperations.NIN)
 
         # Apply the filter to retrieve annotations that do not match the objects of interest
-        filtered_annotations = item.annotations.list(filters=filters_not_object_of_interest)
-
-        # Use the filtered annotations
-        other_annotations = dl.AnnotationCollection(item=item, annotations=filtered_annotations)
+        other_annotations = item.annotations.list(filters=filters_not_object_of_interest)
 
         # Handle objects of interest
         if objects_of_interest:
