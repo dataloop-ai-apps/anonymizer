@@ -50,8 +50,8 @@ class ServiceRunner(dl.BaseServiceRunner):
             elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
                 # TODO: dl.segmentation.from_coordinates instead of that
                 # Generate a box mask
-                object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
-                # box = dl.Segmentation.from_coordinates(object_of_interest.coordinates)
+                # object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
+                object_mask = dl.Segmentation.from_coordinates(object_of_interest.coordinates)
                 # top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
                 # left, right = int(object_of_interest.left), int(object_of_interest.right)
                 # if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
