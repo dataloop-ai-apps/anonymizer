@@ -89,13 +89,12 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         return model_ids, labels
 
-    def anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
+    def anonymize(self, item: dl.Item, context: dl.Context) -> dl.Item:
         """
         Anonymize annotations for a given item based on models and labels.
 
         Args:
             item (dl.Item): The item to process.
-            progress (dl.Progress): Progress tracker.
             context (dl.Context): Context for accessing node configuration.
 
         Returns:
@@ -111,12 +110,12 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         # If models are specified, process for each model
         if model_ids:
-            for model_id in model_ids:
-                model_filters = filters
-                model_filters.add("metadata.system.model.model_id", model_id)
-                logger.info(f"Filtering annotations for model ID: {model_id}")
-                objects_of_interest = item.annotations.list(filters=model_filters)
-                item = self.anonymize_objects(item, objects_of_interest, context)
+            model_filters = filters
+            model_filters.add(field="metadata.system.model.model_id", values=model_ids, operator=dl.FiltersOperations.IN)
+            logger.info(f"Filtering annotations for model IDs: {model_ids}")
+            objects_of_interest = item.annotations.list(filters=model_filters)
+            item = self.anonymize_objects(item, objects_of_interest, context)
+
         else:
             # No models provided; process all annotations that match the label filter
             logger.info("No models specified, processing annotations based on labels only.")
@@ -159,17 +158,17 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         logger.info(f"Found {len(objects_of_interest)} objects of interest.")
 
-        # Define the filter to exclude annotations that are in objects_of_interest_set
-        filters_not_object_of_interest = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
-        filters_not_object_of_interest.add(field='id',
-                                           values=[ann.id for ann in objects_of_interest],
-                                           operator=dl.FiltersOperations.NIN)
-
-        # Apply the filter to retrieve annotations that do not match the objects of interest
-        other_annotations = item.annotations.list(filters=filters_not_object_of_interest)
-
         # Handle objects of interest
         if objects_of_interest:
+            # Define the filter to exclude annotations that are in objects_of_interest
+            filters_not_object_of_interest = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
+            filters_not_object_of_interest.add(field='id',
+                                               values=[ann.id for ann in objects_of_interest],
+                                               operator=dl.FiltersOperations.NIN)
+
+            # Apply the filter to retrieve annotations that do not match the objects of interest
+            other_annotations = item.annotations.list(filters=filters_not_object_of_interest)
+
             # Create mask and apply blur
             mask = self.create_mask(item, objects_of_interest)
             logger.info("Mask created successfully.")
@@ -177,7 +176,7 @@ class ServiceRunner(dl.BaseServiceRunner):
             logger.info("Blurred image created.")
 
             # Handle metadata for the blurred item
-            original_item_metadata = item.metadata
+            original_item_metadata = item.metadata.copy()
             blurred_item = None
 
             if anonymization_type == "replace":
@@ -215,7 +214,8 @@ class ServiceRunner(dl.BaseServiceRunner):
                     blurred_image,
                     remote_path=remote_path,
                     remote_name=f"{prefix}_{item.name}",
-                    item_metadata=original_item_metadata
+                    item_metadata=original_item_metadata,
+                    overwrite=True
                 )
                 # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
@@ -233,6 +233,6 @@ class ServiceRunner(dl.BaseServiceRunner):
             item.metadata["user"]["anonymization"] = {"anonymized": False}
             item.update()
             blurred_item = item
-
+        blurred_item.update()
         logger.info("Blurred item metadata updated.")
         return blurred_item

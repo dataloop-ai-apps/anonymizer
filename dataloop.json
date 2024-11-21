@@ -69,7 +69,8 @@
                 "title": true,
                 "type": "string",
                 "required": false,
-                "default": "label_1, label_2"
+                "default": "label_1, label_2",
+                "placeholder": "Insert label(s) to anonymize"
               },
               "widget": "dl-input"
             },
