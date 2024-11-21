@@ -13,10 +13,8 @@ class ServiceRunner(dl.BaseServiceRunner):
     @staticmethod
     def blur_objects(item: dl.Item, mask: np.array, sigma: int, blur: bool = True) -> np.array:
         logger.info("Blurring objects!")
-        download_time_start = time.time()
+
         image = item.download(save_locally=False, to_array=True)
-        download_end_time = time.time()
-        print(f"Downloading time spent: {download_end_time - download_time_start}")
 
         three_channels_start_time = time.time()
         image_three_channels = image if len(image.shape) == 3 else np.stack([image] * 3, axis=-1)
@@ -29,13 +27,11 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         if blur is True:
             # Blur the objects in the image using Gaussian blur
-            blur_start = time.time()
             blurred_objects = cv2.GaussianBlur(image_three_channels,
                                                (0, 0),
                                                sigmaX=sigma,
                                                sigmaY=sigma,
                                                borderType=cv2.BORDER_DEFAULT)
-            print(f"Blurring time spent: {time.time() - blur_start}")
         else:
             blurred_objects = mask_three_channels
         logger.info("Blurred version created!")
@@ -146,9 +142,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
         filters.add(field='label', values=labels, operator=dl.FILTERS_OPERATIONS_IN)
         objects_of_interest = item.annotations.list(filters=filters)
-        anon_start = time.time()
         res = self.anonymize_objects(item, objects_of_interest, "", progress, context)
-        print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize_objects(self,
@@ -163,10 +157,10 @@ class ServiceRunner(dl.BaseServiceRunner):
         node = context.node
         blur_intensity = node.metadata['customNodeConfig']['blur_intensity']
         blur = node.metadata['customNodeConfig'].get('blur')
+        blur = True if blur == "blur" else False
         replace = node.metadata['customNodeConfig'].get('replace')
         dataset_id = item.dataset_id
         remote_path = node.metadata["customNodeConfig"].get("directory", "/blurred")
-        labels = node.metadata['customNodeConfig']['labels']
         prefix = "blurred"
 
         logger.debug(f"INPUT CONFIGURATIONS FOUND -- blur_intensity: {blur_intensity}, dataset_id: {dataset_id}, "
@@ -178,7 +172,6 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info(f"Obtained {len(objects_of_interest)} objects of interest.")
 
         if len(objects_of_interest) > 0:
-            mask_creation_start = time.time()
             mask = self.create_mask(item, objects_of_interest)
             logger.info("Mask created.")
             blurred_image = self.blur_objects(item, mask, blur_intensity, blur)
