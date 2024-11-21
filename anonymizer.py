@@ -222,7 +222,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                 blurred_item.annotations.upload(other_annotations)
 
                 item.metadata["user"] = item.metadata.get("user", {})
-                item.metadata["user"]["anonymization"] = True
+                item.metadata["user"]["anonymization"] = {"anonymized": True}
                 item.metadata["user"]["blurred_item_id"] = blurred_item.id
                 item.update()
                 logger.info("Original item retained and linked to blurred item.")
@@ -230,7 +230,7 @@ class ServiceRunner(dl.BaseServiceRunner):
             # No objects to anonymize
             logger.info("No annotations to anonymize in the image based on labels provided.")
             item.metadata["user"] = item.metadata.get("user", {})
-            item.metadata["user"]["anonymization"] = False
+            item.metadata["user"]["anonymization"] = {"anonymized": False}
             item.update()
             blurred_item = item
 
