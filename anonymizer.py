@@ -15,15 +15,10 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info("Blurring objects!")
 
         image = item.download(save_locally=False, to_array=True)
-
-        three_channels_start_time = time.time()
         image_three_channels = image if len(image.shape) == 3 else np.stack([image] * 3, axis=-1)
-        print(f"Creating three channels image time spent: {time.time() - three_channels_start_time}")
 
         # Convert the mask to the same size as the image
-        mask_three_channels_start = time.time()
         mask_three_channels = np.stack([mask] * 3, axis=-1)
-        print(f"Creating three channels mask time spent: {time.time() - mask_three_channels_start}")
 
         if blur is True:
             # Blur the objects in the image using Gaussian blur
@@ -35,9 +30,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         else:
             blurred_objects = mask_three_channels
         logger.info("Blurred version created!")
-        replace_start = time.time()
         result = np.where(mask_three_channels, blurred_objects, image_three_channels)
-        print(f"Object replacing time spent: {time.time() - replace_start}")
         logger.info("Objects blurred.")
         return result
 
@@ -45,6 +38,7 @@ class ServiceRunner(dl.BaseServiceRunner):
     def create_mask(item: dl.Item, objects_of_interest: dl.AnnotationCollection):
         mask = np.zeros((item.height, item.width), dtype=np.uint8)
         for i, object_of_interest in enumerate(objects_of_interest):
+            object_of_interest: dl.Annotation
             logger.info(f"Mask for object {i} being created")
             object_mask = np.zeros_like(mask, dtype=np.uint8)
             if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo) > 0:
@@ -54,13 +48,16 @@ class ServiceRunner(dl.BaseServiceRunner):
                                                             (item.height, item.width))
                 object_mask = np.array(segmentation.geo, dtype=np.uint8)
             elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
+                # TODO: dl.segmentation.from_coordinates instead of that
                 # Generate a box mask
-                top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
-                left, right = int(object_of_interest.left), int(object_of_interest.right)
-                if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
-                    object_mask[top:bottom, left:right] = 1
-                else:
-                    raise ValueError(f"Detection {object_of_interest.id} has coordinates outside of the image!")
+                object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
+                # box = dl.Segmentation.from_coordinates(object_of_interest.coordinates)
+                # top, bottom = int(object_of_interest.top), int(object_of_interest.bottom)
+                # left, right = int(object_of_interest.left), int(object_of_interest.right)
+                # if 0 <= top <= bottom <= item.height and 0 <= left <= right <= item.width:
+                #     object_mask[top:bottom, left:right] = 1
+                # else:
+                #     raise ValueError(f"Detection {object_of_interest.id} has coordinates outside of the image!")
             elif object_of_interest.type == dl.ANNOTATION_TYPE_SEGMENTATION:
                 # Use the segmentation mask
                 object_mask = np.array(object_of_interest.geo, dtype=np.uint8)
@@ -71,170 +68,175 @@ class ServiceRunner(dl.BaseServiceRunner):
         return mask
 
     @staticmethod
-    def run_model(item: dl.Item, model: dl.Model, labels: list) -> dl.AnnotationCollection:
-        logger.info("Starting model prediction")
-        if model.status != "deployed" or \
-                len(model.metadata.get("system", {}).get("deploy", {}).get("services", [])) == 0:
-            raise Exception(f"Model {model.id} is not deployed! Can't run anonymization.")
-        predict_execution = model.predict([item.id])
-        logger.info("Waiting for prediction results.")
-        predict_execution.wait()
-        logger.info("Prediction ended successfully.")
-        interest_filter = dl.Filters(
-            dl.KnownFields.LABEL,
-            labels,
-            operator=dl.FiltersOperations.IN,
-            resource=dl.FiltersResource.ANNOTATION
-        )
-        interest_filter.add("metadata.system.model.model_id", model.id)
-        objects_of_interest = item.annotations.list(filters=interest_filter)
-        logger.info(f"Number of objects of interest found in the image: {len(objects_of_interest)}")
-        return objects_of_interest
+    def get_models_and_labels(context: dl.Context) -> tuple[list[str], list[str]]:
+        """
+        Retrieve model IDs and labels from the node's custom configuration.
 
-    @staticmethod
-    def get_models_and_labels(context: dl.Context) -> tuple[Any, Any, Any]:
+        Args:
+            context (dl.Context): Context containing node metadata.
+
+        Returns:
+            tuple[list[str], list[str]]: Lists of model IDs and labels.
+        """
         node = context.node
         model_ids = node.metadata['customNodeConfig'].get('model_ids', "")
-        model_ids = model_ids.split(",")
-        models_list = [dl.models.get(model_id=model_id) if model_id != "" else None for model_id in model_ids]
-        labels = node.metadata['customNodeConfig']['labels']
-        labels = labels.split(",")
-        logger.info("Model loaded")
-        logger.info(f"Model to be used: {model_ids}. Labels to be searched: {labels}")
-        return models_list, model_ids, labels
+        labels = node.metadata['customNodeConfig'].get('labels', "")
 
-    def predict_and_anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
-        logger.info("Starting prediction+anonymization")
-        models_list, model_ids, labels = self.get_models_and_labels(context)
-        res = None
-        for model in models_list:
-            logger.info(f"Running prediction for model {model.id}.")
-            objects_of_interest = self.run_model(item, model, labels)
-            logger.info(f"Prediction successful")
+        # Process model IDs and labels into lists, ignoring empty values
+        model_ids = [model_id.strip() for model_id in model_ids.split(",") if model_id.strip()]
+        labels = [label.strip() for label in labels.split(",") if label.strip()]
 
-            res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
-        return res
+        logger.info("Configuration retrieved:")
+        logger.info(f"Model IDs: {model_ids if model_ids else 'None'}")
+        logger.info(f"Labels: {labels if labels else 'None'}")
+
+        return model_ids, labels
 
     def anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
-        logger.info("Starting anonymization w/o prediction")
-        models_list, model_ids, labels = self.get_models_and_labels(context)
-        res = None
-        for model in models_list:
-            objects_of_interest_filter = dl.Filters(dl.KnownFields.LABEL,
-                                                    labels,
-                                                    resource=dl.FiltersResource.ANNOTATION,
-                                                    operator=dl.FiltersOperations.IN)
-            objects_of_interest_filter.add("metadata.system.model.model_id", model.id)
-            logger.info(f"Filtering annotations generated from the model {model.id}.")
-            objects_of_interest = item.annotations.list(filters=objects_of_interest_filter)
-            anon_start = time.time()
-            res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
-            print(f"&&&&&& Anonymization time: {time.time() - anon_start}")
-        return res
+        """
+        Anonymize annotations for a given item based on models and labels.
 
-    def anonymize_annotations(self,
-                              annotations: dl.AnnotationCollection,
-                              progress: dl.Progress,
-                              context: dl.Context) -> dl.Item:
-        logger.info("Starting anonymization based on annotations.")
-        _, _, labels = self.get_models_and_labels(context)
-        item = annotations[0].item
+        Args:
+            item (dl.Item): The item to process.
+            progress (dl.Progress): Progress tracker.
+            context (dl.Context): Context for accessing node configuration.
+
+        Returns:
+            dl.Item: The updated item.
+        """
+        logger.info("Starting anonymization process.")
+        model_ids, labels = self.get_models_and_labels(context)
+
+        # Prepare the base filter for annotations
         filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
-        filters.add(field='label', values=labels, operator=dl.FILTERS_OPERATIONS_IN)
-        objects_of_interest = item.annotations.list(filters=filters)
-        res = self.anonymize_objects(item, objects_of_interest, "", progress, context)
-        return res
+        if labels:  # Add label filter if labels are provided
+            filters.add(dl.KnownFields.LABEL, labels, operator=dl.FiltersOperations.IN)
+
+        # If models are specified, process for each model
+        if model_ids:
+            for model_id in model_ids:
+                model_filters = filters
+                model_filters.add("metadata.system.model.model_id", model_id)
+                logger.info(f"Filtering annotations for model ID: {model_id}")
+                objects_of_interest = item.annotations.list(filters=model_filters)
+                item = self.anonymize_objects(item, objects_of_interest, context)
+        else:
+            # No models provided; process all annotations that match the label filter
+            logger.info("No models specified, processing annotations based on labels only.")
+            objects_of_interest = item.annotations.list(filters=filters)
+            item = self.anonymize_objects(item, objects_of_interest, context)
+
+        logger.info("Anonymization process completed.")
+        return item
 
     def anonymize_objects(self,
                           item: dl.Item,
                           objects_of_interest: dl.AnnotationCollection,
-                          model_id: str,
-                          progress: dl.Progress,
                           context: dl.Context
                           ) -> dl.Item:
-        # Initialization
-        logger.info("Initializing the parameters from the node configuration")
-        node = context.node
-        blur_intensity = node.metadata['customNodeConfig']['blur_intensity']
-        blur = node.metadata['customNodeConfig'].get('blur')
-        blur = True if blur == "blur" else False
-        replace = node.metadata['customNodeConfig'].get('replace')
-        dataset_id = item.dataset_id
-        remote_path = node.metadata["customNodeConfig"].get("directory", "/blurred")
+        """
+        Anonymizes objects in the provided item based on configuration, while preserving other annotations.
+
+        Args:
+            item (dl.Item): The Dataloop item to be anonymized.
+            objects_of_interest (dl.AnnotationCollection): Annotations to be anonymized.
+            context (dl.Context): Dataloop context for node configuration.
+
+        Returns:
+            dl.Item: The anonymized item.
+        """
+        # Retrieve configuration
+        logger.info("Initializing parameters from the node configuration.")
+        node_config = context.node.metadata['customNodeConfig']
+        blur_intensity = node_config['blur_intensity']
+        blur = node_config.get('blur', '').lower() == "blur"
+        anonymization_type = node_config.get('anonymization_type')
+        dataset = item.dataset
+        remote_path = node_config.get("directory", "/blurred")
         prefix = "blurred"
 
-        logger.debug(f"INPUT CONFIGURATIONS FOUND -- blur_intensity: {blur_intensity}, dataset_id: {dataset_id}, "
-                     f"remote_path: {remote_path}, prefix: {prefix}, blur: {blur}, replace: {replace}")
+        logger.debug(
+            f"INPUT CONFIGURATIONS -- blur_intensity: {blur_intensity}, dataset_id: {dataset.id}, "
+            f"remote_path: {remote_path}, prefix: {prefix}, blur: {blur}, anonymization_type: {anonymization_type}"
+        )
 
-        dataset = dl.datasets.get(dataset_id=dataset_id)
-        logger.info("Dataset loaded")
+        logger.info(f"Found {len(objects_of_interest)} objects of interest.")
 
-        logger.info(f"Obtained {len(objects_of_interest)} objects of interest.")
+        # Define the filter to exclude annotations that are in objects_of_interest_set
+        filters_not_object_of_interest = dl.Filters(dl.FiltersResource.ANNOTATION,
+                                                    [ann.id for ann in objects_of_interest],
+                                                    operator=dl.FiltersOperations.NIN)
 
-        if len(objects_of_interest) > 0:
+        # Apply the filter to retrieve annotations that do not match the objects of interest
+        filtered_annotations = item.annotations.list(filters=filters_not_object_of_interest)
+
+        # Use the filtered annotations
+        other_annotations = dl.AnnotationCollection(item=item, annotations=filtered_annotations)
+
+        # Handle objects of interest
+        if objects_of_interest:
+            # Create mask and apply blur
             mask = self.create_mask(item, objects_of_interest)
-            logger.info("Mask created.")
+            logger.info("Mask created successfully.")
             blurred_image = self.blur_objects(item, mask, blur_intensity, blur)
             logger.info("Blurred image created.")
-            metadata = item.metadata
-            if replace == "replace":
-                logger.info("Replacing original item with blurred item.")
-                remote_path = item.dir
-                remote_name = item.name
-                item.delete()
-                logger.info("Original item removed successfully.")
 
-                blurred_item = dataset.items.upload(blurred_image,
-                                                    remote_path=remote_path,
-                                                    item_metadata=metadata,
-                                                    remote_name=remote_name)
-                logger.info("Blurred image uploaded!")
+            # Handle metadata for the blurred item
+            original_item_metadata = item.metadata
+            blurred_item = None
+
+            if anonymization_type == "replace":
+                logger.info("Anonymization type: replace. Overwriting original item with blurred item.")
+                blurred_item = dataset.items.upload(
+                    blurred_image,
+                    remote_path=item.dir,
+                    remote_name=item.name,
+                    item_metadata=original_item_metadata,
+                    overwrite=True
+                )
+                # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
+                blurred_item.annotations.upload(other_annotations)
                 logger.info("Original item replaced successfully.")
-            elif replace == "remove":
-                logger.info("Removing original item.")
-                remote_name = f"{prefix}_{item.name}"
+            elif anonymization_type == "remove":
+                logger.info("Anonymization type: remove. Creating a new item and removing the original.")
+                blurred_item = dataset.items.upload(
+                    blurred_image,
+                    remote_path=remote_path,
+                    remote_name=f"{prefix}_{item.name}",
+                    item_metadata=original_item_metadata
+                )
+                # Upload both objects of interest and other annotations
+                blurred_item.annotations.upload(objects_of_interest)
+                blurred_item.annotations.upload(other_annotations)
                 item.delete()
                 logger.info("Original item removed successfully.")
-                blurred_item = dataset.items.upload(blurred_image,
-                                                    remote_path=remote_path,
-                                                    item_metadata=metadata,
-                                                    remote_name=remote_name)
-                logger.info("Blurred image uploaded!")
-                blurred_item.annotations.upload(objects_of_interest)
             else:
-                logger.info("Keeping original item.")
-                metadata['user'] = metadata.get('user', {})
-                metadata['user']["original_item_id"] = item.id
+                logger.info("Anonymization type: keep. Creating a new blurred item and keeping the original.")
+                original_item_metadata['user'] = original_item_metadata.get('user', {})
+                original_item_metadata['user']["original_item_id"] = item.id
 
-                blurred_item = dataset.items.upload(blurred_image,
-                                                    remote_path=remote_path,
-                                                    item_metadata=metadata,
-                                                    remote_name=f"{prefix}_{item.name}")
-                logger.info("Blurred image uploaded!")
-
-                item.metadata['user']["anonymization"] = {"anonymized": True}
-                item.metadata['user']['result_item_id'] = blurred_item.id
-                item.update(system_metadata=True)
-
+                blurred_item = dataset.items.upload(
+                    blurred_image,
+                    remote_path=remote_path,
+                    remote_name=f"{prefix}_{item.name}",
+                    item_metadata=original_item_metadata
+                )
+                # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
-                logger.info("Original item was kept unchanged.")
-            progress.update(action="anonymized")
+                blurred_item.annotations.upload(other_annotations)
+
+                item.metadata.setdefault('user', {})
+                item.metadata['user']["anonymization"] = True
+                item.metadata['user']['blurred_item_id'] = blurred_item.id
+                item.update()
+                logger.info("Original item retained and linked to blurred item.")
         else:
+            # No objects to anonymize
+            logger.info("No objects of interest in the image.")
+            item.metadata.setdefault('user', {})["anonymization"] = False
+            item.update()
             blurred_item = item
-            logger.info("There were no objects of interest in the image.")
-            blurred_item.metadata.setdefault('user', {})["anonymization"] = {"anonymized": False}
-            progress.update(action="no-objects")
 
-        # annotation_deletion_filter = dl.Filters(resource=dl.FILTERS_RESOURCE_ANNOTATION)
-        # for label in labels:
-        #     annotation_deletion_filter.add(dl.KnownFields.LABEL, label, operator=dl.FiltersOperations.NOT_EQUAL)
-        # if model_id != "":
-        #     annotation_deletion_filter.add("metadata.system.model.model_id", model_id)
-        # item.annotations.delete(filters=annotation_deletion_filter)
-        # logger.info("Annotations deleted, original image cleaned up")
-
-        blurred_item = blurred_item.update(system_metadata=True)
-        logger.info("Blurred item metadata updated!")
-
+        logger.info("Blurred item metadata updated.")
         return blurred_item
