@@ -57,15 +57,9 @@
                 "title": true,
                 "type": "string",
                 "default": "model_1, model_2",
-                "required": true,
+                "required": false,
                 "placeholder": "Insert model id(s)"
               },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
               "widget": "dl-input"
             },
             {
@@ -74,15 +68,9 @@
               "props": {
                 "title": true,
                 "type": "string",
-                "required": true,
+                "required": false,
                 "default": "label_1, label_2"
               },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
               "widget": "dl-input"
             },
             {
