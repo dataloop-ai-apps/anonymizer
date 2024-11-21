@@ -208,8 +208,8 @@ class ServiceRunner(dl.BaseServiceRunner):
                 logger.info("Original item removed successfully.")
             else:
                 logger.info("Anonymization type: keep. Creating a new blurred item and keeping the original.")
-                original_item_metadata['user'] = original_item_metadata.get('user', {})
-                original_item_metadata['user']["original_item_id"] = item.id
+                original_item_metadata["user"] = original_item_metadata.get('user', {})
+                original_item_metadata["user"]["original_item_id"] = item.id
 
                 blurred_item = dataset.items.upload(
                     blurred_image,
@@ -221,15 +221,16 @@ class ServiceRunner(dl.BaseServiceRunner):
                 blurred_item.annotations.upload(objects_of_interest)
                 blurred_item.annotations.upload(other_annotations)
 
-                item.metadata.setdefault('user', {})
-                item.metadata['user']["anonymization"] = True
-                item.metadata['user']['blurred_item_id'] = blurred_item.id
+                item.metadata["user"] = item.metadata.get("user", {})
+                item.metadata["user"]["anonymization"] = True
+                item.metadata["user"]["blurred_item_id"] = blurred_item.id
                 item.update()
                 logger.info("Original item retained and linked to blurred item.")
         else:
             # No objects to anonymize
-            logger.info("No objects of interest in the image.")
-            item.metadata.setdefault('user', {})["anonymization"] = False
+            logger.info("No annotations to anonymize in the image based on labels provided.")
+            item.metadata["user"] = item.metadata.get("user", {})
+            item.metadata["user"]["anonymization"] = False
             item.update()
             blurred_item = item
 
