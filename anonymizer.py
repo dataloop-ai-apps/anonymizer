@@ -81,7 +81,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                 len(model.metadata.get("system", {}).get("deploy", {}).get("services", [])) == 0:
             raise Exception(f"Model {model.id} is not deployed! Can't run anonymization.")
         predict_execution = model.predict([item.id])
-        logger.info("Waiting for prediction results")
+        logger.info("Waiting for prediction results.")
         predict_execution.wait()
         logger.info("Prediction ended successfully.")
         interest_filter = dl.Filters(
@@ -113,14 +113,10 @@ class ServiceRunner(dl.BaseServiceRunner):
         res = None
         for model in models_list:
             logger.info(f"Running prediction for model {model.id}.")
-            model_run_start = time.time()
             objects_of_interest = self.run_model(item, model, labels)
-            print(f"----- Time spent in model prediction: {time.time() - model_run_start}")
             logger.info(f"Prediction successful")
-            anon_start = time.time()
 
             res = self.anonymize_objects(item, objects_of_interest, model.id, progress, context)
-            print(f"----- Anonymization time: {time.time() - anon_start}")
         return res
 
     def anonymize(self, item: dl.Item, progress: dl.Progress, context: dl.Context) -> dl.Item:
@@ -167,9 +163,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         node = context.node
         blur_intensity = node.metadata['customNodeConfig']['blur_intensity']
         blur = node.metadata['customNodeConfig'].get('blur')
-        blur = "blur" in blur if blur else True
         replace = node.metadata['customNodeConfig'].get('replace')
-        replace = "yes" in replace if replace else True
         dataset_id = item.dataset_id
         remote_path = node.metadata["customNodeConfig"].get("directory", "/blurred")
         labels = node.metadata['customNodeConfig']['labels']
@@ -186,50 +180,68 @@ class ServiceRunner(dl.BaseServiceRunner):
         if len(objects_of_interest) > 0:
             mask_creation_start = time.time()
             mask = self.create_mask(item, objects_of_interest)
-            print(f"*** Time spent in mask creation: {time.time() - mask_creation_start}")
             logger.info("Mask created.")
-            blur_start = time.time()
             blurred_image = self.blur_objects(item, mask, blur_intensity, blur)
-            print(f"*** Time spent in blurring: {time.time() - blur_start}")
-            logger.info("Blurred image created")
+            logger.info("Blurred image created.")
             metadata = item.metadata
-            metadata["anonymization"] = {"original_item_id": item.id, "anonymized": True}
-            blurred_item = dataset.items.upload(blurred_image,
-                                                remote_path=remote_path,
-                                                item_metadata=metadata,
-                                                remote_name=f"{prefix}_{item.name}")
-            blurred_item.annotations.upload(objects_of_interest)
-            logger.info("Item for blurred image created!")
-            logger.info("Blurred item updated!")
             if replace == "replace":
                 logger.info("Replacing original item with blurred item.")
-                item.modalities.delete(name="reference-viewer")
-                item.modalities.create(modality_type=dl.MODALITY_TYPE_REPLACE,
-                                       name='reference-viewer',
-                                       mimetype=blurred_item.mimetype,
-                                       ref=blurred_item.id
-                                       )
+                remote_path = item.dir
+                remote_name = item.name
+                item.delete()
+                logger.info("Original item removed successfully.")
+
+                blurred_item = dataset.items.upload(blurred_image,
+                                                    remote_path=remote_path,
+                                                    item_metadata=metadata,
+                                                    remote_name=remote_name)
+                logger.info("Blurred image uploaded!")
+                blurred_item.annotations.upload(objects_of_interest)
+                logger.info("Original item replaced successfully.")
             elif replace == "remove":
                 logger.info("Removing original item.")
+                remote_name = f"{prefix}_{item.name}"
                 item.delete()
+                logger.info("Original item removed successfully.")
+                blurred_item = dataset.items.upload(blurred_image,
+                                                    remote_path=remote_path,
+                                                    item_metadata=metadata,
+                                                    remote_name=remote_name)
+                logger.info("Blurred image uploaded!")
+                blurred_item.annotations.upload(objects_of_interest)
             else:
+                logger.info("Keeping original item.")
+                metadata['user'] = metadata.get('user', {})
+                metadata['user']["original_item_id"] = item.id
+
+                blurred_item = dataset.items.upload(blurred_image,
+                                                    remote_path=remote_path,
+                                                    item_metadata=metadata,
+                                                    remote_name=f"{prefix}_{item.name}")
+                logger.info("Blurred image uploaded!")
+
+                item.metadata['user']["anonymization"] = {"anonymized": True}
+                item.metadata['user']['result_item_id'] = blurred_item.id
+                item.update(system_metadata=True)
+
+                blurred_item.annotations.upload(objects_of_interest)
                 logger.info("Original item was kept unchanged.")
-            if 'user' not in item.metadata:
-                item.metadata['user'] = dict()
-            item.metadata['user']['result_item_id'] = blurred_item.id
-            item.update(system_metadata=True)
             progress.update(action="anonymized")
         else:
             blurred_item = item
-            logger.info("There were no objects of interest in the image")
-            blurred_item.metadata["anonymization"] = {"anonymized": False}
+            logger.info("There were no objects of interest in the image.")
+            blurred_item.metadata.setdefault('user', {})["anonymization"] = {"anonymized": False}
             progress.update(action="no-objects")
-        annotation_deletion_filter = dl.Filters(resource=dl.FILTERS_RESOURCE_ANNOTATION)
-        for label in labels:
-            annotation_deletion_filter.add(dl.KnownFields.LABEL, label, operator=dl.FiltersOperations.NOT_EQUAL)
-        if model_id != "":
-            annotation_deletion_filter.add("metadata.system.model.model_id", model_id)
-        item.annotations.delete(filters=annotation_deletion_filter)
+
+        # annotation_deletion_filter = dl.Filters(resource=dl.FILTERS_RESOURCE_ANNOTATION)
+        # for label in labels:
+        #     annotation_deletion_filter.add(dl.KnownFields.LABEL, label, operator=dl.FiltersOperations.NOT_EQUAL)
+        # if model_id != "":
+        #     annotation_deletion_filter.add("metadata.system.model.model_id", model_id)
+        # item.annotations.delete(filters=annotation_deletion_filter)
+        # logger.info("Annotations deleted, original image cleaned up")
+
         blurred_item = blurred_item.update(system_metadata=True)
-        logger.info("Annotations deleted, original image cleaned up")
+        logger.info("Blurred item metadata updated!")
+
         return blurred_item

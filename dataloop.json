@@ -56,7 +56,7 @@
               "props": {
                 "title": true,
                 "type": "string",
-                "default": "model_id_1, model_id_2",
+                "default": "model_id_1,model_id_2",
                 "required": true,
                 "placeholder": "Insert model id(s)"
               },
