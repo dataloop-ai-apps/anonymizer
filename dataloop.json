@@ -52,13 +52,13 @@
             },
             {
               "name": "model_ids",
-              "title": "Model(s)",
+              "title": "Model ID(s)",
               "props": {
                 "title": true,
                 "type": "string",
                 "default": "model_1, model_2",
                 "required": false,
-                "placeholder": "Insert model id(s)"
+                "placeholder": "Models to anonymize (leave empty to include all models)"
               },
               "widget": "dl-input"
             },
@@ -70,7 +70,7 @@
                 "type": "string",
                 "required": false,
                 "default": "label_1, label_2",
-                "placeholder": "Insert label(s) to anonymize"
+                "placeholder": "Labels to anonymize (leave empty to include all labels)"
               },
               "widget": "dl-input"
             },
