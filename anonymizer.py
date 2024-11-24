@@ -77,8 +77,8 @@ class ServiceRunner(dl.BaseServiceRunner):
         labels = node.metadata['customNodeConfig'].get('labels', "")
 
         # Process model IDs and labels into lists, ignoring empty values
-        model_ids = [model_id.strip() for model_id in model_ids.split(",") if model_id.strip()]
-        labels = [label.strip() for label in labels.split(",") if label.strip()]
+        model_ids = [model_id.strip() for model_id in model_ids.split(",") if not model_id.strip() == ""]
+        labels = [label.strip() for label in labels.split(",") if not label.strip() == ""]
 
         logger.info("Configuration retrieved:")
         logger.info(f"Model IDs: {model_ids if model_ids else 'None'}")
@@ -102,22 +102,18 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         # Prepare the base filter for annotations
         filters = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
-        if labels:  # Add label filter if labels are provided
+        if len(labels) != 0:  # Add label filter if labels are provided
             filters.add(dl.KnownFields.LABEL, labels, operator=dl.FiltersOperations.IN)
+            logger.info(f"Filtering annotations for labels: {labels}")
 
         # If models are specified, process for each model
-        if model_ids:
-            model_filters = filters
-            model_filters.add(field="metadata.system.model.model_id", values=model_ids, operator=dl.FiltersOperations.IN)
+        if len(model_ids) != 0:
+            filters.add(field="metadata.system.model.model_id", values=model_ids,
+                        operator=dl.FiltersOperations.IN)
             logger.info(f"Filtering annotations for model IDs: {model_ids}")
-            objects_of_interest = item.annotations.list(filters=model_filters)
-            item = self.anonymize_objects(item, objects_of_interest, context)
 
-        else:
-            # No models provided; process all annotations that match the label filter
-            logger.info("No models specified, processing annotations based on labels only.")
-            objects_of_interest = item.annotations.list(filters=filters)
-            item = self.anonymize_objects(item, objects_of_interest, context)
+        objects_of_interest = item.annotations.list(filters=filters)
+        item = self.anonymize_objects(item, objects_of_interest, context)
 
         logger.info("Anonymization process completed.")
         return item
@@ -156,7 +152,7 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info(f"Found {len(objects_of_interest)} objects of interest.")
 
         # Handle objects of interest
-        if objects_of_interest:
+        if len(objects_of_interest) > 0:
             # Define the filter to exclude annotations that are in objects_of_interest
             filters_not_object_of_interest = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
             filters_not_object_of_interest.add(field='id',
