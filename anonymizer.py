@@ -1,10 +1,7 @@
 import dtlpy as dl
-from typing import Any
 import cv2
 import logging
 import numpy as np
-import time
-from typing import List
 
 logger = logging.getLogger("[Anonymizer]")
 
