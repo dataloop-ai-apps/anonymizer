@@ -2,12 +2,12 @@
   "displayName": "Anonymization Tools",
   "name": "anonymization-tools",
   "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "scope": "public",
   "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/anonymizer.git",
-    "gitTag": "0.1.3"
+    "gitTag": "0.1.4"
   },
   "attributes": {
     "Provider": "Dataloop",
