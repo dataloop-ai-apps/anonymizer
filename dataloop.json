@@ -12,8 +12,10 @@
   "attributes": {
     "Provider": "Dataloop",
     "Category": "Application",
+    "Deployed By": "Dataloop",
+    "Media Type": ["Image"],
     "Application Type": [
-      "Node"
+      "Pipeline Node"
     ]
   },
   "components": {
