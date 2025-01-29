@@ -229,3 +229,6 @@ class ServiceRunner(dl.BaseServiceRunner):
         blurred_item.update()
         logger.info("Blurred item metadata updated.")
         return blurred_item
+
+
+frame.save(frame, format='JPEG')
