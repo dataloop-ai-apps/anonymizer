@@ -21,169 +21,14 @@
       {
         "invoke": {
           "type": "function",
-          "namespace": "anonymizer-service.anonymizer-module.predict_and_anonymize"
-        },
-        "name": "Predict and Anonymize",
-        "categories": [
-          "Anonymization"
-        ],
-        "displayName": "Predict and Anonymize",
-        "description": "This node takes an item and a model, runs the model's prediction over the item, and blurs detected objects of classes specified in the `labels` parameter.",
-        "scope": "node",
-        "configuration": {
-          "fields": [
-            {
-              "name": "name",
-              "title": "Node Name",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": "Predict and Anonymize",
-                "required": true,
-                "placeholder": "Insert node name"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            },
-            {
-              "name": "model_id",
-              "title": "Model",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": "",
-                "required": true,
-                "placeholder": "Insert model id"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            },
-            {
-              "name": "labels",
-              "title": "Labels",
-              "props": {
-                "title": true,
-                "type": "string",
-                "required": true,
-                "default": "person,face"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            },
-            {
-              "name": "blur",
-              "title": "Blur or fill?",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": true,
-                "required": false,
-                "options": [
-                  {
-                    "value": "blur",
-                    "label": "Blur"
-                  },
-                  {
-                    "value": "fill",
-                    "label": "Fill"
-                  }
-                ]
-              },
-              "rules": [],
-              "widget": "dl-select"
-            },
-            {
-              "name": "blur_intensity",
-              "title": "Blur Intensity",
-              "props": {
-                "title": true,
-                "type": "number",
-                "default": 25,
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "required": true
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-slider"
-            },
-            {
-              "name": "replace",
-              "title": "Remove, replace, or keep input image?",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": "keep",
-                "required": false,
-                "options": [
-                  {
-                    "value": "remove",
-                    "label": "Remove"
-                  },
-                  {
-                    "value": "replace",
-                    "label": "Replace"
-                  },
-                  {
-                    "value": "keep",
-                    "label": "Keep"
-                  }
-                ]
-              },
-              "rules": [],
-              "widget": "dl-select"
-            },
-            {
-              "name": "directory",
-              "title": "Save directory",
-              "props": {
-                "title": true,
-                "type": "string",
-                "required": true,
-                "default": "/blurred"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            }
-          ]
-        }
-      },
-      {
-        "invoke": {
-          "type": "function",
           "namespace": "anonymizer-service.anonymizer-module.anonymize"
         },
         "name": "Anonymize",
         "categories": [
-          "Anonymization"
+          "image-utils"
         ],
         "displayName": "Anonymize",
-        "description": "Blurs objects of the specified labels detected by the specified model in the input image.",
+        "description": "Blurs objects of the specified labels detected by the specified models in the input image.",
         "scope": "node",
         "configuration": {
           "fields": [
@@ -206,48 +51,44 @@
               "widget": "dl-input"
             },
             {
-              "name": "model_id",
-              "title": "Model",
+              "name": "model_ids",
+              "title": "Model ID(s)",
               "props": {
                 "title": true,
                 "type": "string",
-                "default": "",
-                "required": true,
-                "placeholder": "Insert model id"
+                "default": "model_1, model_2",
+                "required": false,
+                "placeholder": "Models to anonymize (leave empty to include all models)"
               },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
               "widget": "dl-input"
             },
             {
               "name": "labels",
-              "title": "Labels",
+              "title": "Label(s)",
               "props": {
                 "title": true,
                 "type": "string",
-                "required": true,
-                "default": "person,face"
+                "required": false,
+                "default": "label_1, label_2",
+                "placeholder": "Labels to anonymize (leave empty to include all labels)"
               },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
               "widget": "dl-input"
             },
             {
               "name": "blur",
-              "title": "Blur or fill?",
+              "title": "Blur or Fill the annotation?",
               "props": {
                 "title": true,
                 "type": "string",
                 "default": true,
-                "required": false,
+                "required": true,
+
+                "rules": [
+                  {
+                    "type": "required",
+                    "effect": "error"
+                  }
+                ],
                 "options": [
                   {
                     "value": "blur",
@@ -283,145 +124,8 @@
               "widget": "dl-slider"
             },
             {
-              "name": "replace",
-              "title": "Remove, replace, or keep input image?",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": "keep",
-                "required": false,
-                "options": [
-                  {
-                    "value": "remove",
-                    "label": "Remove"
-                  },
-                  {
-                    "value": "replace",
-                    "label": "Replace"
-                  },
-                  {
-                    "value": "keep",
-                    "label": "Keep"
-                  }
-                ]
-              },
-              "rules": [],
-              "widget": "dl-select"
-            },
-            {
-              "name": "directory",
-              "title": "Save directory",
-              "props": {
-                "title": true,
-                "type": "string",
-                "required": true,
-                "default": "/blurred"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            }
-          ]
-        }
-      },
-      {
-        "invoke": {
-          "type": "function",
-          "namespace": "anonymizer-service.anonymizer-module.anonymize_annotations"
-        },
-        "name": "Anonymize Annotations",
-        "categories": [
-          "Anonymization"
-        ],
-        "displayName": "Anonymize Annotations",
-        "description": "Takes an annotation collection and blurs the objects of interest in the item to which they belong.",
-        "scope": "node",
-        "configuration": {
-          "fields": [
-            {
-              "name": "name",
-              "title": "Node Name",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": "Anonymize Annotations",
-                "required": true,
-                "placeholder": "Insert node name"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            },
-            {
-              "name": "labels",
-              "title": "Labels",
-              "props": {
-                "title": true,
-                "type": "string",
-                "required": true,
-                "default": "person,face"
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-input"
-            },
-            {
-              "name": "blur",
-              "title": "Blur or fill?",
-              "props": {
-                "title": true,
-                "type": "string",
-                "default": true,
-                "required": false,
-                "options": [
-                  {
-                    "value": "blur",
-                    "label": "Blur"
-                  },
-                  {
-                    "value": "fill",
-                    "label": "Fill"
-                  }
-                ]
-              },
-              "rules": [],
-              "widget": "dl-select"
-            },
-            {
-              "name": "blur_intensity",
-              "title": "Blur Intensity",
-              "props": {
-                "title": true,
-                "type": "number",
-                "default": 25,
-                "max": 100,
-                "min": 0,
-                "step": 1,
-                "required": true
-              },
-              "rules": [
-                {
-                  "type": "required",
-                  "effect": "error"
-                }
-              ],
-              "widget": "dl-slider"
-            },
-            {
-              "name": "replace",
-              "title": "Remove, replace, or keep input image?",
+              "name": "anonymization_type",
+              "title": "Remove, Replace, or Keep input image?",
               "props": {
                 "title": true,
                 "type": "string",
@@ -474,26 +178,6 @@
         "initInputs": [],
         "functions": [
           {
-            "name": "predict_and_anonymize",
-            "input": [
-              {
-                "type": "Item",
-                "name": "item"
-              }
-            ],
-            "output": [
-              {
-                "type": "Item",
-                "name": "blurred_item",
-                "actions": [
-                  "anonymized",
-                  "no-objects"
-                ]
-              }
-            ],
-            "displayIcon": "icon-dl-governance-filled"
-          },
-          {
             "name": "anonymize",
             "input": [
               {
@@ -504,31 +188,7 @@
             "output": [
               {
                 "type": "Item",
-                "name": "blurred_item",
-                "actions": [
-                  "anonymized",
-                  "no-objects"
-                ]
-              }
-            ],
-            "displayIcon": "icon-dl-governance-filled"
-          },
-          {
-            "name": "anonymize_annotations",
-            "input": [
-              {
-                "type": "Annotation[]",
-                "name": "annotations"
-              }
-            ],
-            "output": [
-              {
-                "type": "Item",
-                "name": "blurred_item",
-                "actions": [
-                  "anonymized",
-                  "no-objects"
-                ]
+                "name": "blurred_item"
               }
             ],
             "displayIcon": "icon-dl-governance-filled"
