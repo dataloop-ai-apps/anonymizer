@@ -1,7 +1,7 @@
 {
   "displayName": "Anonymization Tools",
   "name": "anonymization-tools",
-  "description": "Takes an item, a model, and a list of labels. Calls the model predict and blurs objects with the listed labels",
+  "description": "A Dataloop pipeline node application for anonymizing images by blurring or masking specific objects based on annotations, models, and labels.",
   "version": "0.1.5",
   "scope": "public",
   "codebase": {
