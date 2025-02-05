@@ -2,12 +2,12 @@
   "displayName": "Anonymization Tools",
   "name": "anonymization-tools",
   "description": "A Dataloop pipeline node application for anonymizing images by blurring or masking specific objects based on annotations, models, and labels.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "scope": "public",
   "codebase": {
     "type": "git",
     "gitUrl": "https://github.com/dataloop-ai-apps/anonymizer.git",
-    "gitTag": "0.1.6"
+    "gitTag": "0.1.7"
   },
   "attributes": {
     "Provider": "Dataloop",
