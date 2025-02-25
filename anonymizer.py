@@ -1,5 +1,6 @@
 import dtlpy as dl
 import cv2
+import os
 import logging
 import numpy as np
 
@@ -19,11 +20,9 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         if blur is True:
             # Blur the objects in the image using Gaussian blur
-            blurred_objects = cv2.GaussianBlur(image_three_channels,
-                                               (0, 0),
-                                               sigmaX=sigma,
-                                               sigmaY=sigma,
-                                               borderType=cv2.BORDER_DEFAULT)
+            blurred_objects = cv2.GaussianBlur(
+                image_three_channels, (0, 0), sigmaX=sigma, sigmaY=sigma, borderType=cv2.BORDER_DEFAULT
+            )
         else:
             blurred_objects = mask_three_channels
         logger.info("Blurred version created!")
@@ -40,9 +39,9 @@ class ServiceRunner(dl.BaseServiceRunner):
             object_mask = np.zeros_like(mask, dtype=np.uint8)
             if object_of_interest.type == dl.ANNOTATION_TYPE_POLYGON and len(object_of_interest.geo) > 0:
                 # Generate a polygon mask
-                segmentation = dl.Segmentation.from_polygon(object_of_interest.geo,
-                                                            object_of_interest.label,
-                                                            (item.height, item.width))
+                segmentation = dl.Segmentation.from_polygon(
+                    object_of_interest.geo, object_of_interest.label, (item.height, item.width)
+                )
                 object_mask = np.array(segmentation.geo, dtype=np.uint8)
             elif object_of_interest.type == dl.ANNOTATION_TYPE_BOX:
                 # Generate a box mask
@@ -73,8 +72,8 @@ class ServiceRunner(dl.BaseServiceRunner):
             tuple[list[str], list[str]]: Lists of model IDs and labels.
         """
         node = context.node
-        model_ids = node.metadata['customNodeConfig'].get('model_ids', "")
-        labels = node.metadata['customNodeConfig'].get('labels', "")
+        model_ids = node.metadata["customNodeConfig"].get("model_ids", "")
+        labels = node.metadata["customNodeConfig"].get("labels", "")
 
         # Process model IDs and labels into lists, ignoring empty values
         model_ids = [model_id.strip() for model_id in model_ids.split(",") if not model_id.strip() == ""]
@@ -108,8 +107,7 @@ class ServiceRunner(dl.BaseServiceRunner):
 
         # If models are specified, process for each model
         if len(model_ids) != 0:
-            filters.add(field="metadata.system.model.model_id", values=model_ids,
-                        operator=dl.FiltersOperations.IN)
+            filters.add(field="metadata.system.model.model_id", values=model_ids, operator=dl.FiltersOperations.IN)
             logger.info(f"Filtering annotations for model IDs: {model_ids}")
 
         objects_of_interest = item.annotations.list(filters=filters)
@@ -118,11 +116,9 @@ class ServiceRunner(dl.BaseServiceRunner):
         logger.info("Anonymization process completed.")
         return item
 
-    def anonymize_objects(self,
-                          item: dl.Item,
-                          objects_of_interest: dl.AnnotationCollection,
-                          context: dl.Context
-                          ) -> dl.Item:
+    def anonymize_objects(
+        self, item: dl.Item, objects_of_interest: dl.AnnotationCollection, context: dl.Context
+    ) -> dl.Item:
         """
         Anonymizes objects in the provided item based on configuration, while preserving other annotations.
 
@@ -136,10 +132,10 @@ class ServiceRunner(dl.BaseServiceRunner):
         """
         # Retrieve configuration
         logger.info("Initializing parameters from the node configuration.")
-        node_config = context.node.metadata['customNodeConfig']
-        blur_intensity = node_config['blur_intensity']
-        blur = node_config.get('blur', '').lower() == "blur"
-        anonymization_type = node_config.get('anonymization_type')
+        node_config = context.node.metadata["customNodeConfig"]
+        blur_intensity = node_config["blur_intensity"]
+        blur = node_config.get("blur", "").lower() == "blur"
+        anonymization_type = node_config.get("anonymization_type")
         dataset = item.dataset
         remote_path = node_config.get("directory", "/blurred")
         prefix = "blurred"
@@ -155,9 +151,9 @@ class ServiceRunner(dl.BaseServiceRunner):
         if len(objects_of_interest) > 0:
             # Define the filter to exclude annotations that are in objects_of_interest
             filters_not_object_of_interest = dl.Filters(resource=dl.FiltersResource.ANNOTATION)
-            filters_not_object_of_interest.add(field='id',
-                                               values=[ann.id for ann in objects_of_interest],
-                                               operator=dl.FiltersOperations.NIN)
+            filters_not_object_of_interest.add(
+                field="id", values=[ann.id for ann in objects_of_interest], operator=dl.FiltersOperations.NIN
+            )
 
             # Apply the filter to retrieve annotations that do not match the objects of interest
             other_annotations = item.annotations.list(filters=filters_not_object_of_interest)
@@ -179,7 +175,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                     remote_path=item.dir,
                     remote_name=item.name,
                     item_metadata=original_item_metadata,
-                    overwrite=True
+                    overwrite=True,
                 )
                 # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
@@ -191,7 +187,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                     blurred_image,
                     remote_path=remote_path,
                     remote_name=f"{prefix}_{item.name}",
-                    item_metadata=original_item_metadata
+                    item_metadata=original_item_metadata,
                 )
                 # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
@@ -200,7 +196,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                 logger.info("Original item removed successfully.")
             else:
                 logger.info("Anonymization type: keep. Creating a new blurred item and keeping the original.")
-                original_item_metadata["user"] = original_item_metadata.get('user', {})
+                original_item_metadata["user"] = original_item_metadata.get("user", {})
                 original_item_metadata["user"]["original_item_id"] = item.id
 
                 blurred_item = dataset.items.upload(
@@ -208,7 +204,7 @@ class ServiceRunner(dl.BaseServiceRunner):
                     remote_path=remote_path,
                     remote_name=f"{prefix}_{item.name}",
                     item_metadata=original_item_metadata,
-                    overwrite=True
+                    overwrite=True,
                 )
                 # Upload both objects of interest and other annotations
                 blurred_item.annotations.upload(objects_of_interest)
@@ -225,7 +221,26 @@ class ServiceRunner(dl.BaseServiceRunner):
             item.metadata["user"] = item.metadata.get("user", {})
             item.metadata["user"]["anonymization"] = {"anonymized": False}
             item.update()
-            blurred_item = item
+            blurred_item = item.clone(
+                dst_dataset_id=item.dataset_id,
+                remote_filepath=remote_path + "/" + item.name,
+                with_annotations=True,
+                with_metadata=True,
+            )
         blurred_item.update()
         logger.info("Blurred item metadata updated.")
         return blurred_item
+
+
+if __name__ == "__main__":
+    runner = ServiceRunner()
+    context = dl.Context()
+    context.pipeline_id = ""
+    context.node_id = ""
+    context.node.metadata["customNodeConfig"] = {
+        "blur_intensity": 10,
+        "blur": "blur",
+        "anonymization_type": "keep",
+        "directory": "/testing",
+    }
+    runner.anonymize(item=dl.items.get(item_id=""), context=context)
